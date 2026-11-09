@@ -3,6 +3,11 @@ import { supabase } from '../lib/supabase'
 
 const today = () => new Date().toISOString().slice(0, 10)
 
+const toJalali = (iso) =>
+  new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  }).format(new Date(iso + 'T12:00:00'))
+
 export default function TeacherAttendance() {
   const [classes, setClasses] = useState([])
   const [classId, setClassId] = useState('')
@@ -79,6 +84,9 @@ export default function TeacherAttendance() {
           <div>
             <label>تاریخ</label>
             <input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+            <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>
+              {toJalali(day)}
+            </div>
           </div>
         </div>
       </div>
@@ -92,7 +100,7 @@ export default function TeacherAttendance() {
 
       <div className="card animate-in" style={{ '--i': 1 }}>
         <div className="page-head" style={{ marginBottom: 10 }}>
-          <h2>لیست حضور</h2>
+          <h2>لیست حضور - {toJalali(day)}</h2>
           <button className="ghost small" onClick={markAllPresent} disabled={!students.length}>همه حاضر</button>
         </div>
         {students.length === 0 && <div className="empty">هنرجویی در این کلاس نیست.</div>}
