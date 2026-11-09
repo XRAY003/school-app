@@ -11,14 +11,12 @@ import TeacherAttendance from './pages/TeacherAttendance'
 import TeacherScores from './pages/TeacherScores'
 import TeacherStudents from './pages/TeacherStudents'
 import StudentDashboard from './pages/StudentDashboard'
+import Invite from './pages/Invite'
 
 function Home() {
   const navigate = useNavigate()
-  const [mode, setMode] = useState('login')
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState('student')
   const [loading, setLoading] = useState(false)
   const [checking, setChecking] = useState(true)
   const [error, setError] = useState('')
@@ -39,85 +37,47 @@ function Home() {
     check()
   }, [navigate])
 
-  // شماره را به یک ایمیل ساختگی تبدیل می‌کنیم؛ هیچ ایمیلی ارسال نمی‌شود
-  const toEmail = (p) => `${p}@school-app.com`
+  // نام کاربری را به ایمیل داخلی تبدیل می‌کنیم؛ هیچ ایمیلی ارسال نمی‌شود
+  const toEmail = (u) => `${u.trim().toLowerCase()}@school-app.com`
 
   async function submit(e) {
     e.preventDefault()
     setError('')
-    const cleanPhone = phone.replace(/\s/g, '')
-    const cleanName = name.trim()
-
-    if (!/^09\d{9}$/.test(cleanPhone)) return setError('شماره موبایل معتبر نیست (مثال: 09123456789)')
-    if (password.length < 6) return setError('پسورد باید حداقل ۶ کاراکتر باشد')
+    if (!username.trim()) return setError('نام کاربری را وارد کن')
+    if (!password) return setError('پسورد را وارد کن')
 
     setLoading(true)
-
-    if (mode === 'signup') {
-      if (cleanName.length < 2) {
-        setLoading(false)
-        return setError('نام را وارد کن (حداقل ۲ حرف)')
-      }
-      const { error } = await supabase.auth.signUp({
-        email: toEmail(cleanPhone),
-        password,
-        options: {
-          data: { role, full_name: cleanName, phone: cleanPhone },
-        },
-      })
-      setLoading(false)
-      if (error) {
-        const msg = /already|registered|exists/i.test(error.message)
-          ? 'این شماره قبلاً ثبت‌نام کرده است. از بخش ورود استفاده کن.'
-          : error.message
-        return setError(msg)
-      }
-      navigate(`/${role}`, { replace: true })
-      return
-    }
-
-    // ورود
     const { error } = await supabase.auth.signInWithPassword({
-      email: toEmail(cleanPhone),
+      email: toEmail(username),
       password,
     })
     if (error) {
       setLoading(false)
-      return setError('شماره یا پسورد اشتباه است.')
+      return setError('نام کاربری یا پسورد اشتباه است.')
     }
     const { data: { user } } = await supabase.auth.getUser()
     const { data: p } = await supabase
       .from('profiles').select('role').eq('id', user.id).maybeSingle()
     setLoading(false)
-    if (!p) return setError('برای این شماره پروفایلی پیدا نشد.')
+    if (!p) return setError('برای این حساب پروفایلی پیدا نشد.')
     navigate(`/${p.role}`, { replace: true })
   }
 
   if (checking) return <div className="hero"><div className="spinner" /></div>
-
-  const isSignup = mode === 'signup'
 
   return (
     <div className="hero">
       <div className="card login-card">
         <div className="logo">🎓</div>
         <h1>سامانه مدیریت آموزشگاه</h1>
-        <p>{isSignup ? 'حساب جدید بساز. هر شماره فقط یک حساب دارد.' : 'با شماره و پسورد خود وارد شو.'}</p>
+        <p>با نام کاربری و پسورد معلم وارد شو.</p>
 
         <form onSubmit={submit}>
-          {isSignup && (
-            <input
-              placeholder="نام و نام خانوادگی"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          )}
           <input
-            type="tel"
-            placeholder="09123456789"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            style={{ textAlign: 'center', letterSpacing: 1 }}
+            placeholder="نام کاربری"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            style={{ textAlign: 'center' }}
           />
           <input
             type="password"
@@ -126,38 +86,10 @@ function Home() {
             onChange={(e) => setPassword(e.target.value)}
             style={{ textAlign: 'center' }}
           />
-
-          {isSignup && (
-            <>
-              <label>نقش شما</label>
-              <div className="role-buttons" style={{ marginBottom: 12 }}>
-                <button
-                  type="button"
-                  className={role === 'teacher' ? '' : 'ghost'}
-                  onClick={() => setRole('teacher')}
-                >معلم</button>
-                <button
-                  type="button"
-                  className={role === 'student' ? '' : 'ghost'}
-                  onClick={() => setRole('student')}
-                >هنرجو</button>
-              </div>
-            </>
-          )}
-
           <button type="submit" disabled={loading} style={{ width: '100%' }}>
-            {loading ? 'لطفاً صبر کن...' : isSignup ? 'ثبت‌نام' : 'ورود'}
+            {loading ? 'لطفاً صبر کن...' : 'ورود'}
           </button>
         </form>
-
-        <button
-          type="button"
-          className="ghost"
-          style={{ width: '100%', marginTop: 10 }}
-          onClick={() => { setMode(isSignup ? 'login' : 'signup'); setError('') }}
-        >
-          {isSignup ? 'حساب داری؟ ورود' : 'حساب نداری؟ ثبت‌نام'}
-        </button>
 
         {error && <div className="toast error" style={{ marginTop: 14 }}>{error}</div>}
       </div>
@@ -220,7 +152,6 @@ function Layout() {
         ))}
         <div className="sidebar-footer">
           <div style={{ fontWeight: 700 }}>{profile.full_name}</div>
-          <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 8 }}>{profile.phone}</div>
           <button className="ghost small" onClick={logout}>خروج</button>
         </div>
       </aside>
@@ -236,6 +167,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/invite/:token" element={<Invite />} />
         <Route path="/teacher" element={<RoleGuard role="teacher" />}>
           <Route element={<Layout />}>
             <Route index element={<TeacherClasses />} />
