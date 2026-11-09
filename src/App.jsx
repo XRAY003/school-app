@@ -9,6 +9,7 @@ import TeacherQuestions from './pages/TeacherQuestions'
 import TeacherExams from './pages/TeacherExams'
 import TeacherAttendance from './pages/TeacherAttendance'
 import TeacherScores from './pages/TeacherScores'
+import TeacherStudents from './pages/TeacherStudents'
 import StudentDashboard from './pages/StudentDashboard'
 
 function Home() {
@@ -190,6 +191,7 @@ function RoleGuard({ role }) {
 const MENUS = {
   teacher: [
     ['/teacher', 'کلاس‌ها', '🏫'],
+    ['/teacher/students', 'هنرجوها', '👥'],
     ['/teacher/questions', 'بانک سوال', '❓'],
     ['/teacher/exams', 'آزمون و کوییز', '📝'],
     ['/teacher/attendance', 'حضور و غیاب', '✅'],
@@ -237,6 +239,7 @@ export default function App() {
         <Route path="/teacher" element={<RoleGuard role="teacher" />}>
           <Route element={<Layout />}>
             <Route index element={<TeacherClasses />} />
+            <Route path="students" element={<TeacherStudents />} />
             <Route path="questions" element={<TeacherQuestions />} />
             <Route path="exams" element={<TeacherExams />} />
             <Route path="attendance" element={<TeacherAttendance />} />
