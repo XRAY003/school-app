@@ -10,7 +10,11 @@ async function callFn(body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  return res.json()
+  const out = await res.json().catch(() => ({ error: 'خطای سرور' }))
+  if (!res.ok || out.error) {
+    return { error: out.error || out.message || 'خطا در ارتباط با سرور' }
+  }
+  return out
 }
 
 export default function Invite() {
