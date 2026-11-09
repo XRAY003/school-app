@@ -9,9 +9,10 @@ export default function TeacherClasses() {
   const [selected, setSelected] = useState(null)
   const [members, setMembers] = useState([])
   const [scores, setScores] = useState([])
+  const [allStudents, setAllStudents] = useState([])
   const [loadingClasses, setLoadingClasses] = useState(true)
   const [newName, setNewName] = useState('')
-  const [phone, setPhone] = useState('')
+  const [pickId, setPickId] = useState('')
   const [toast, setToast] = useState(null)
 
   function flash(type, text) {
@@ -30,6 +31,16 @@ export default function TeacherClasses() {
     setSelected((prev) => prev ?? (data && data[0]) ?? null)
   }
 
+  async function loadAllStudents() {
+    const { data } = await supabase
+      .from('students')
+      .select('id, profiles(full_name)')
+      .eq('teacher_id', profile.id)
+    setAllStudents(
+      (data || []).map((s) => ({ id: s.id, name: s.profiles?.full_name ?? '—' }))
+    )
+  }
+
   async function loadDetails(classId) {
     const { data: links } = await supabase
       .from('class_students')
@@ -41,7 +52,7 @@ export default function TeacherClasses() {
     if (ids.length) {
       const { data } = await supabase
         .from('profiles')
-        .select('id, full_name, phone')
+        .select('id, full_name')
         .in('id', ids)
       people = data || []
     }
@@ -56,6 +67,7 @@ export default function TeacherClasses() {
 
   useEffect(() => {
     loadClasses()
+    loadAllStudents()
   }, [])
 
   useEffect(() => {
@@ -82,24 +94,26 @@ export default function TeacherClasses() {
   async function addStudent(e) {
     e.preventDefault()
     if (!selected) return
-    const cleaned = phone.replace(/\s/g, '')
-    if (!/^09\d{9}$/.test(cleaned)) {
-      return flash('error', 'شماره موبایل معتبر نیست (مثال: 09123456789)')
-    }
+    if (!pickId) return flash('error', 'یک هنرجو را انتخاب کن')
+
     const { error } = await supabase.rpc('add_student_to_class', {
       p_class_id: selected.id,
-      p_phone: cleaned,
+      p_student_id: pickId,
     })
     if (error) {
       const msg = error.message.includes('student_not_found')
-        ? 'هنرجویی با این شماره پیدا نشد. او باید ابتدا وارد سامانه شده باشد.'
+        ? 'این هنرجو متعلق به تو نیست.'
         : error.message
       return flash('error', msg)
     }
-    setPhone('')
+    setPickId('')
     flash('success', 'هنرجو به کلاس اضافه شد')
     loadDetails(selected.id)
   }
+
+  // هنرجوهایی که هنوز در این کلاس نیستند
+  const memberIds = new Set(members.map((m) => m.id))
+  const available = allStudents.filter((s) => !memberIds.has(s.id))
 
   const board = members
     .map((m) => {
@@ -121,7 +135,6 @@ export default function TeacherClasses() {
       {toast && <div className={`toast ${toast.type}`}>{toast.text}</div>}
 
       <div className="grid-2">
-        {/* ستون چپ: لیست کلاس‌ها و ساخت کلاس */}
         <div>
           <div className="card animate-in" style={{ '--i': 0 }}>
             <h2>ساخت کلاس جدید</h2>
@@ -156,7 +169,6 @@ export default function TeacherClasses() {
           </div>
         </div>
 
-        {/* ستون راست: جزئیات کلاس */}
         <div>
           {!selected ? (
             <div className="card animate-in empty" style={{ '--i': 0 }}>
@@ -169,13 +181,20 @@ export default function TeacherClasses() {
                 <p>{members.length} هنرجو در این کلاس</p>
 
                 <form onSubmit={addStudent} style={{ marginTop: 10 }}>
-                  <input
-                    type="tel"
-                    placeholder="شماره موبایل هنرجو: 09123456789"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
-                  <button type="submit">افزودن هنرجو</button>
+                  <label>افزودن هنرجو از لیست هنرجوهای من</label>
+                  <select value={pickId} onChange={(e) => setPickId(e.target.value)}>
+                    <option value="">-- انتخاب کن --</option>
+                    {available.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                  <button type="submit" disabled={!available.length}>افزودن به کلاس</button>
+                  {allStudents.length === 0 && (
+                    <div className="empty">هنوز هنرجویی نساخته‌ای. از بخش «هنرجوها» اضافه کن.</div>
+                  )}
+                  {allStudents.length > 0 && available.length === 0 && (
+                    <div className="empty">همه هنرجوهای تو در این کلاس هستند.</div>
+                  )}
                 </form>
               </div>
 
@@ -187,7 +206,6 @@ export default function TeacherClasses() {
                     <div className="avatar">{m.full_name?.[0] || '؟'}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700 }}>{m.full_name}</div>
-                      <div style={{ color: 'var(--muted)', fontSize: 13 }}>{m.phone || 'بدون شماره'}</div>
                     </div>
                   </div>
                 ))}
