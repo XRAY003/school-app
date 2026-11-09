@@ -1,0 +1,9 @@
+{
+  "appId": "com.xray.school",
+  "appName": "سامانه آموزشگاه",
+  "webDir": "dist",
+  "server": {
+    "url": "https://school-app-xray11.vercel.app",
+    "cleartext": false
+  }
+}
