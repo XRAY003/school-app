@@ -11,17 +11,17 @@ import TeacherAttendance from './pages/TeacherAttendance'
 import TeacherScores from './pages/TeacherScores'
 import StudentDashboard from './pages/StudentDashboard'
 
-const phoneOk = (p) => /^09\d{9}$/.test(p)
-
 function Home() {
   const navigate = useNavigate()
+  const [mode, setMode] = useState('login')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [password, setPassword] = useState('')
+  const [role, setRole] = useState('student')
   const [loading, setLoading] = useState(false)
   const [checking, setChecking] = useState(true)
   const [error, setError] = useState('')
 
-  // اگر قبلاً وارد شده باشی، مستقیم به پنلت می‌روی
   useEffect(() => {
     async function check() {
       const { data: { session } } = await supabase.auth.getSession()
@@ -38,65 +38,125 @@ function Home() {
     check()
   }, [navigate])
 
-  async function login(role) {
+  // شماره را به یک ایمیل ساختگی تبدیل می‌کنیم؛ هیچ ایمیلی ارسال نمی‌شود
+  const toEmail = (p) => `${p}@school-app.com`
+
+  async function submit(e) {
+    e.preventDefault()
     setError('')
     const cleanPhone = phone.replace(/\s/g, '')
     const cleanName = name.trim()
-    if (cleanName.length < 2) return setError('اسمت را وارد کن (حداقل ۲ حرف)')
-    if (!phoneOk(cleanPhone)) return setError('شماره موبایل معتبر نیست (مثال: 09123456789)')
+
+    if (!/^09\d{9}$/.test(cleanPhone)) return setError('شماره موبایل معتبر نیست (مثال: 09123456789)')
+    if (password.length < 6) return setError('پسورد باید حداقل ۶ کاراکتر باشد')
 
     setLoading(true)
-    const { data: { session } } = await supabase.auth.getSession()
 
-    if (session) {
-      const { data: p } = await supabase
-        .from('profiles').select('role').eq('id', session.user.id).maybeSingle()
-      if (p && p.role === role) {
-        // همان نقش: بدون ورود مجدد، فقط اطلاعات را به‌روز کن
-        await supabase.from('profiles')
-          .update({ full_name: cleanName, phone: cleanPhone })
-          .eq('id', session.user.id)
+    if (mode === 'signup') {
+      if (cleanName.length < 2) {
         setLoading(false)
-        navigate(`/${role}`)
-        return
+        return setError('نام را وارد کن (حداقل ۲ حرف)')
       }
-      await supabase.auth.signOut()
+      const { error } = await supabase.auth.signUp({
+        email: toEmail(cleanPhone),
+        password,
+        options: {
+          data: { role, full_name: cleanName, phone: cleanPhone },
+        },
+      })
+      setLoading(false)
+      if (error) {
+        const msg = /already|registered|exists/i.test(error.message)
+          ? 'این شماره قبلاً ثبت‌نام کرده است. از بخش ورود استفاده کن.'
+          : error.message
+        return setError(msg)
+      }
+      navigate(`/${role}`, { replace: true })
+      return
     }
 
-    const { error } = await supabase.auth.signInAnonymously({
-      options: { data: { role, phone: cleanPhone, full_name: cleanName } },
+    // ورود
+    const { error } = await supabase.auth.signInWithPassword({
+      email: toEmail(cleanPhone),
+      password,
     })
+    if (error) {
+      setLoading(false)
+      return setError('شماره یا پسورد اشتباه است.')
+    }
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: p } = await supabase
+      .from('profiles').select('role').eq('id', user.id).maybeSingle()
     setLoading(false)
-    if (error) return setError(error.message)
-    navigate(`/${role}`)
+    if (!p) return setError('برای این شماره پروفایلی پیدا نشد.')
+    navigate(`/${p.role}`, { replace: true })
   }
 
   if (checking) return <div className="hero"><div className="spinner" /></div>
+
+  const isSignup = mode === 'signup'
 
   return (
     <div className="hero">
       <div className="card login-card">
         <div className="logo">🎓</div>
         <h1>سامانه مدیریت آموزشگاه</h1>
-        <p>نام و شماره موبایل خود را وارد کن و نقشت را انتخاب کن. دفعه‌های بعد خودکار وارد می‌شوی.</p>
+        <p>{isSignup ? 'حساب جدید بساز. هر شماره فقط یک حساب دارد.' : 'با شماره و پسورد خود وارد شو.'}</p>
 
-        <input
-          placeholder="نام و نام خانوادگی"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          type="tel"
-          placeholder="09123456789"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          style={{ textAlign: 'center', letterSpacing: 1 }}
-        />
+        <form onSubmit={submit}>
+          {isSignup && (
+            <input
+              placeholder="نام و نام خانوادگی"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          )}
+          <input
+            type="tel"
+            placeholder="09123456789"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            style={{ textAlign: 'center', letterSpacing: 1 }}
+          />
+          <input
+            type="password"
+            placeholder="پسورد"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={{ textAlign: 'center' }}
+          />
 
-        <div className="role-buttons">
-          <button disabled={loading} onClick={() => login('teacher')}>ورود معلم</button>
-          <button disabled={loading} onClick={() => login('student')}>ورود هنرجو</button>
-        </div>
+          {isSignup && (
+            <>
+              <label>نقش شما</label>
+              <div className="role-buttons" style={{ marginBottom: 12 }}>
+                <button
+                  type="button"
+                  className={role === 'teacher' ? '' : 'ghost'}
+                  onClick={() => setRole('teacher')}
+                >معلم</button>
+                <button
+                  type="button"
+                  className={role === 'student' ? '' : 'ghost'}
+                  onClick={() => setRole('student')}
+                >هنرجو</button>
+              </div>
+            </>
+          )}
+
+          <button type="submit" disabled={loading} style={{ width: '100%' }}>
+            {loading ? 'لطفاً صبر کن...' : isSignup ? 'ثبت‌نام' : 'ورود'}
+          </button>
+        </form>
+
+        <button
+          type="button"
+          className="ghost"
+          style={{ width: '100%', marginTop: 10 }}
+          onClick={() => { setMode(isSignup ? 'login' : 'signup'); setError('') }}
+        >
+          {isSignup ? 'حساب داری؟ ورود' : 'حساب نداری؟ ثبت‌نام'}
+        </button>
 
         {error && <div className="toast error" style={{ marginTop: 14 }}>{error}</div>}
       </div>
